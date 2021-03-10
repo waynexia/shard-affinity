@@ -1,8 +1,7 @@
-use crate::cell::{Bytes, BytesRef, Timestamp};
+use crate::cell::{Bytes, BytesRef};
+use rand::random;
 
 const BLOCK_SIZE: usize = 4096;
-const READ_UNIT_SIZE: usize = 1024;
-const BLOCK_UNIT_NUM: usize = BLOCK_SIZE / READ_UNIT_SIZE;
 
 struct Block {
     // todo: type param
@@ -11,12 +10,31 @@ struct Block {
 }
 
 impl Block {
-    pub fn get(&self, pos: usize) -> Bytes {
-        self.block[pos * READ_UNIT_SIZE..(pos + 1) * READ_UNIT_SIZE].to_vec()
+    pub fn new() -> Self {
+        Self {
+            block: [0; BLOCK_SIZE],
+            used: 0,
+        }
     }
 
-    pub fn put(&mut self, bytes: Bytes) {
-        todo!()
+    pub fn get(&self, size: usize) -> BytesRef {
+        // todo: add calculation
+        &self.block[0..size]
+    }
+
+    /// Return un-capacity size
+    pub fn put(&mut self, bytes: BytesRef) -> usize {
+        let bytes_len = bytes.len();
+        if BLOCK_SIZE - self.used >= bytes_len {
+            self.block[self.used..self.used + bytes_len].copy_from_slice(bytes);
+            self.used += bytes_len;
+            0
+        } else {
+            let remaining = BLOCK_SIZE - self.used;
+            self.block[self.used..].copy_from_slice(&bytes[..remaining]);
+            self.used = BLOCK_SIZE;
+            bytes_len - remaining
+        }
     }
 }
 
@@ -26,21 +44,25 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn get(&self, pos: usize) -> Bytes {
-        let (i, pos) = self.convert_pos(pos);
-        self.blocks[i].get(pos)
+    pub fn get(&self, size: usize) -> Bytes {
+        let block_num = self.blocks.len();
+        let mut result = Vec::with_capacity(size);
+
+        while result.len() < size {
+            let index = random::<usize>() % block_num;
+            result.extend_from_slice(self.blocks[index].get(size - result.len()));
+        }
+
+        result
     }
 
     pub fn put(&mut self, bytes: Bytes) {
-        todo!()
-    }
-
-    /// Return index of / inside block
-    #[inline]
-    fn convert_pos(&self, pos: usize) -> (usize, usize) {
-        let index_of_block = (pos / BLOCK_UNIT_NUM) % self.blocks.len();
-        let index_inside_block = pos % BLOCK_UNIT_NUM;
-
-        (index_of_block, index_inside_block)
+        let mut cursor = 0;
+        let mut remaining = self.blocks.last_mut().unwrap().put(&bytes[cursor..]);
+        while remaining != 0 {
+            self.blocks.push(Block::new());
+            cursor += remaining;
+            remaining = self.blocks.last_mut().unwrap().put(&bytes[cursor..]);
+        }
     }
 }

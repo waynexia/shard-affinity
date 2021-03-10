@@ -3,34 +3,35 @@ use std::sync::RwLock;
 
 use crate::item::Item;
 
-pub type Timestamp = i64;
 pub type Bytes = Vec<u8>;
 pub type BytesRef<'a> = &'a [u8];
+pub type Id = usize;
 
 #[derive(Default)]
 pub struct CacheCell {
     // todo: only keep [Item]'s reference.
-    items: RwLock<BTreeMap<Timestamp, RwLock<Item>>>,
+    items: RwLock<BTreeMap<Id, RwLock<Item>>>,
 }
 
 impl CacheCell {
-    pub fn get(&self, timestamp: Timestamp, pos: usize) -> Option<Bytes> {
+    /// Get random `size`.
+    pub fn get(&self, id: Id, size: usize) -> Option<Bytes> {
         Some(
             self.items
                 .read()
                 .unwrap()
-                .get(&timestamp)?
+                .get(&id)?
                 .read()
                 .unwrap()
-                .get(pos),
+                .get(size),
         )
     }
 
-    pub fn append(&self, timestamp: Timestamp, bytes: Bytes) {
+    pub fn append(&self, id: usize, bytes: Bytes) {
         self.items
             .write()
             .unwrap()
-            .entry(timestamp)
+            .entry(id)
             .or_default()
             .write()
             .unwrap()
