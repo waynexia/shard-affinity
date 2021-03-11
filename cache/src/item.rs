@@ -1,7 +1,7 @@
 use crate::cell::{Bytes, BytesRef};
 use rand::random;
 
-const BLOCK_SIZE: usize = 4096;
+const BLOCK_SIZE: usize = 1024 * 16;
 
 struct Block {
     // todo: type param
@@ -38,7 +38,6 @@ impl Block {
     }
 }
 
-#[derive(Default)]
 pub struct Item {
     blocks: Vec<Block>,
 }
@@ -63,6 +62,14 @@ impl Item {
             self.blocks.push(Block::new());
             cursor += remaining;
             remaining = self.blocks.last_mut().unwrap().put(&bytes[cursor..]);
+        }
+    }
+}
+
+impl Default for Item {
+    fn default() -> Item {
+        Item {
+            blocks: vec![Block::new()],
         }
     }
 }
