@@ -4,7 +4,6 @@ use rand::random;
 const BLOCK_SIZE: usize = 1024 * 16;
 
 struct Block {
-    // todo: type param
     block: [u8; BLOCK_SIZE],
     used: usize,
 }
@@ -18,7 +17,6 @@ impl Block {
     }
 
     pub fn get(&self, size: usize) -> BytesRef {
-        // todo: add calculation
         &self.block[0..size]
     }
 
@@ -53,7 +51,6 @@ impl Item {
         }
 
         calculation(result)
-        // result
     }
 
     pub fn put(&mut self, bytes: Bytes) {
@@ -79,10 +76,6 @@ impl Default for Item {
 
 #[inline]
 fn calculation(mut bytes: Bytes) -> Bytes {
-    // bytes
-    //     .into_iter()
-    //     .map(|num| black_box(num.wrapping_mul(num).wrapping_pow(num as u32)))
-    //     .collect()
     let mut sum: u8 = 0;
     bytes.iter().for_each(|x| sum = sum.wrapping_add(*x));
     bytes[0] += sum;

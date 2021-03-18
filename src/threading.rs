@@ -8,12 +8,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::runtime::Builder;
 
-const CONCURRENT_NUM: usize = 128 * 4;
-const WRITE_BATCH_SIZE: usize = 4096 * 4;
-const WRITE_LOOP_NUM: usize = 1024;
-const READ_BATCH_SIZE: usize = 4096 * 4;
-const READ_LOOP_NUM: usize = 1024 * 4;
-const MAX_ID: usize = 1024 * 2;
+use shard_affinity::*;
 
 fn main() {
     let rt = Builder::new_multi_thread()
