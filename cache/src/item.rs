@@ -1,5 +1,3 @@
-use std::hint::black_box;
-
 use crate::cell::{Bytes, BytesRef};
 use rand::random;
 

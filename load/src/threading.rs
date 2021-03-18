@@ -1,5 +1,4 @@
 use cache::{Bytes, Cache, Id};
-use std::hint::black_box;
 
 const SHARD_NUM: usize = 128;
 
@@ -33,11 +32,6 @@ impl ThreadingLoad {
 
     #[inline]
     fn calculation(mut bytes: Bytes) -> Bytes {
-        // bytes
-        //     .into_iter()
-        //     .map(|num| black_box(num.wrapping_mul(num).wrapping_pow(num as u32)))
-        //     .collect()
-
         let mut sum: u8 = 0;
         bytes.iter().for_each(|x| sum = sum.wrapping_add(*x));
         bytes[0] += sum;

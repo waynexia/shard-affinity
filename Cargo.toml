@@ -8,9 +8,10 @@ edition = "2018"
 
 [dependencies]
 load = { path = "load" }
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.3", features = ["full"] }
 futures = "0.3"
 rand = "0.8.3"
+pprof = { version = "0.4", features = ["flamegraph"] }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -20,4 +21,8 @@ members = ["cache", "runtime", "load"]
 
 [[bin]]
 name = "threading"
-path = "src/bin.rs"
+path = "src/threading.rs"
+
+[[bin]]
+name = "local_set"
+path = "src/local_set.rs"
