@@ -7,9 +7,17 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+load = { path = "load" }
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+rand = "0.8.3"
+
+[dev-dependencies]
+criterion = "0.3"
 
 [workspace]
-members = [ 
-    "cache",
-    "runtime",
-]
+members = ["cache", "runtime", "load"]
+
+[[bin]]
+name = "threading"
+path = "src/bin.rs"

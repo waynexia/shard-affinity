@@ -1,3 +1,4 @@
+#![feature(test)]
 mod cache;
 mod cell;
 mod item;
