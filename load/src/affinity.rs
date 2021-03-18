@@ -1,4 +1,5 @@
 use cache::{Bytes, Cache, Id};
+use core_affinity::CoreId;
 use runtime::Runtime;
 use std::rc::Rc;
 use std::thread_local;
@@ -42,8 +43,9 @@ pub struct AffinityLoad {
 
 impl AffinityLoad {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        let runtime = Runtime::new(CORE_NUM);
+    pub fn new(core_ids: &[CoreId]) -> Self {
+        assert_eq!(core_ids.len(), CORE_NUM);
+        let runtime = Runtime::new(core_ids);
 
         Self { runtime }
     }

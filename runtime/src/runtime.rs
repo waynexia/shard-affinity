@@ -1,4 +1,4 @@
-use hwloc;
+use core_affinity::CoreId;
 use std::future::Future;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
@@ -10,13 +10,14 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(num_thds: usize) -> Self {
-        let mut queues = Vec::with_capacity(num_thds);
-        for _ in 0..num_thds {
+    pub fn new(core_ids: &[CoreId]) -> Self {
+        let mut queues = Vec::with_capacity(core_ids.len());
+        for core_id in core_ids {
             let (tx, rx) = channel::<RcTask>();
             queues.push(tx);
+            let core_id = core_id.to_owned();
             thread::spawn(move || {
-                pin_thread();
+                core_affinity::set_for_current(core_id);
                 loop {
                     while let Ok(task) = rx.recv() {
                         unsafe { task.poll() }
@@ -36,8 +37,4 @@ impl Runtime {
             .send(RcTask::new(task, self.queues[index].clone()))
             .unwrap();
     }
-}
-
-fn pin_thread() {
-    // todo!()
 }

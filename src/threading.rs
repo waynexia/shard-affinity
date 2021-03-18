@@ -55,7 +55,7 @@ fn main() {
     println!("read cost {} ms", now.elapsed().as_millis());
 
     if let Ok(report) = prof_guard.report().build() {
-        let _ = std::fs::create_dir("flamegraph").unwrap();
+        let _ = std::fs::create_dir("flamegraph");
         let file = std::fs::File::create("flamegraph/threading.svg").unwrap();
         report.flamegraph(file).unwrap();
     };

@@ -16,8 +16,11 @@ const READ_LOOP_NUM: usize = 1024 * 4;
 const MAX_ID: usize = 1024 * 2;
 
 fn main() {
+    let core_ids = core_affinity::get_core_ids().unwrap();
+    core_affinity::set_for_current(core_ids[0]);
+
     let rt = Builder::new_current_thread().enable_all().build().unwrap();
-    let load = Rc::new(AffinityLoad::new());
+    let load = Rc::new(AffinityLoad::new(&core_ids[1..]));
 
     let now = Instant::now();
     for _ in 0..WRITE_LOOP_NUM {
@@ -47,7 +50,7 @@ fn main() {
     println!("read cost {} ms", now.elapsed().as_millis());
 
     if let Ok(report) = prof_guard.report().build() {
-        let _ = std::fs::create_dir("flamegraph").unwrap();
+        let _ = std::fs::create_dir("flamegraph");
         let file = std::fs::File::create("flamegraph/affinity.svg").unwrap();
         report.flamegraph(file).unwrap();
     };

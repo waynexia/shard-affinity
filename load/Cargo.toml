@@ -10,3 +10,4 @@ edition = "2018"
 cache = { path = "../cache" }
 runtime = { path = "../runtime" }
 tokio = { version = "1.3", features = ["full"] }
+core_affinity = "0.5.10"
