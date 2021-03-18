@@ -18,7 +18,7 @@ impl Runtime {
             thread::spawn(move || {
                 pin_thread();
                 loop {
-                    for task in &rx {
+                    while let Ok(task) = rx.recv() {
                         unsafe { task.poll() }
                     }
                 }
@@ -28,7 +28,7 @@ impl Runtime {
         Self { queues }
     }
 
-    pub fn spawn<F>(&self, task: F, index: usize)
+    pub fn spawn<F>(&self, index: usize, task: F)
     where
         F: Future<Output = ()> + Send + 'static,
     {
@@ -39,5 +39,5 @@ impl Runtime {
 }
 
 fn pin_thread() {
-    todo!()
+    // todo!()
 }

@@ -23,3 +23,7 @@ path = "src/threading.rs"
 [[bin]]
 name = "local_set"
 path = "src/local_set.rs"
+
+[[bin]]
+name = "affinity"
+path = "src/affinity.rs"
