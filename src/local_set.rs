@@ -46,8 +46,10 @@ fn main() {
         rt.block_on(local);
     }
     println!("read cost {} ms", now.elapsed().as_millis());
+
     if let Ok(report) = prof_guard.report().build() {
-        let file = std::fs::File::create("local_set_flamegraph.svg").unwrap();
+        let _ = std::fs::create_dir("flamegraph");
+        let file = std::fs::File::create("flamegraph/local_set.svg").unwrap();
         report.flamegraph(file).unwrap();
     };
 }

@@ -53,8 +53,10 @@ fn main() {
         rt.block_on(join_all(read_handles));
     }
     println!("read cost {} ms", now.elapsed().as_millis());
+
     if let Ok(report) = prof_guard.report().build() {
-        let file = std::fs::File::create("threading_flamegraph.svg").unwrap();
+        let _ = std::fs::create_dir("flamegraph").unwrap();
+        let file = std::fs::File::create("flamegraph/threading.svg").unwrap();
         report.flamegraph(file).unwrap();
     };
 }
