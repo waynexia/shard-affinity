@@ -53,8 +53,8 @@ impl AffinityLoad {
     pub async fn append(&self, id: Id, bytes: Bytes) {
         let (tx, rx) = oneshot::channel();
 
-        let id = shard_id(id);
-        self.runtime.spawn(id, async move {
+        // let id = shard_id(id);
+        self.runtime.spawn(shard_id(id), async move {
             thread_local! (static SHARD:AffinityShard = AffinityShard::new() );
 
             SHARD.with(|shard| {
@@ -71,8 +71,8 @@ impl AffinityLoad {
     pub async fn get(&self, id: Id, size: usize) {
         let (tx, rx) = oneshot::channel();
 
-        let id = shard_id(id);
-        self.runtime.spawn(id, async move {
+        // let id = shard_id(id);
+        self.runtime.spawn(shard_id(id), async move {
             thread_local! (static SHARD:AffinityShard = AffinityShard::new() );
 
             let result = SHARD.with(|shard| {
