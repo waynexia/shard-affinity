@@ -3,7 +3,7 @@
 
 Thread Per Core 简单来说就是将应用的每一个线程绑定到一个计算核心上，通过 sharding 的方式将计算拆解分配到对应的核上。这是一种 shared nothing 的方式，每个核单独持有计算所需要的数据，独立完成计算任务，从而避免掉多余的线程同步开销。同时每个核心和工作线程一一对应，减少上下文切换的开销。
 
-在 [waynexia/shard-affinity](github.com/waynexia/shard-affinity) 中，我分别用普通的不做限制调度、local set 给计算任务分组以及 绑定任务、核心与线程三种方式实现同一个目的的 cache 结构。这三种实现分别对应 *shard-affinity/load/src* 目录下的 *threading-rs*, *local_set-rs* 和 *affinity-rs* 三个文件。
+在 [waynexia/shard-affinity](https://github.com/waynexia/shard-affinity) 中，我分别用普通的不做限制调度、local set 给计算任务分组以及 绑定任务、核心与线程三种方式实现同一个目的的 cache 结构。这三种实现分别对应 *shard-affinity/load/src* 目录下的 *threading-rs*, *local_set-rs* 和 *affinity-rs* 三个文件。
 
 # Cache
 
