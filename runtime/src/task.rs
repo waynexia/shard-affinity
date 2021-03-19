@@ -1,11 +1,11 @@
+use crossbeam::channel::Sender;
 use std::cell::UnsafeCell;
 use std::future::Future;
 use std::mem::{forget, ManuallyDrop};
 use std::pin::Pin;
-use std::rc::Rc;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering::{self, Relaxed};
-use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::task::{Context, RawWaker, RawWakerVTable, Waker};
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -18,33 +18,29 @@ const COMPLETE: u8 = 3; // No transitions out
 /// default ordering
 const ORDERING: Ordering = Relaxed;
 
-/// `!Sync`
 struct Task {
     task: UnsafeCell<BoxFuture<'static, ()>>,
-    queue: Sender<RcTask>,
+    queue: Sender<ArcTask>,
     status: AtomicU8,
 }
 
-unsafe impl Send for Task {}
-
 #[derive(Clone)]
-pub struct RcTask(Rc<Task>);
+pub struct ArcTask(Arc<Task>);
 
-// todo: this send on Rc
-unsafe impl Send for RcTask {}
+unsafe impl Send for ArcTask {}
 
-impl RcTask {
+impl ArcTask {
     #[inline]
-    pub fn new<F>(future: F, queue: Sender<RcTask>) -> Self
+    pub fn new<F>(future: F, queue: Sender<ArcTask>) -> Self
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        let future = Rc::new(Task {
+        let future = Arc::new(Task {
             task: UnsafeCell::new(Box::pin(future)),
             queue,
             status: AtomicU8::new(WAITING),
         });
-        let future: *const Task = Rc::into_raw(future) as *const Task;
+        let future: *const Task = Arc::into_raw(future) as *const Task;
         unsafe { task(future) }
     }
 
@@ -81,7 +77,7 @@ unsafe fn waker(task: *const Task) -> Waker {
 unsafe fn clone_raw(this: *const ()) -> RawWaker {
     let task = clone_task(this as *const Task);
     RawWaker::new(
-        Rc::into_raw(task.0) as *const (),
+        Arc::into_raw(task.0) as *const (),
         &RawWakerVTable::new(clone_raw, wake_raw, wake_ref_raw, drop_raw),
     )
 }
@@ -160,12 +156,12 @@ unsafe fn wake_ref_raw(this: *const ()) {
 }
 
 #[inline]
-unsafe fn task(future: *const Task) -> RcTask {
-    RcTask(Rc::from_raw(future))
+unsafe fn task(future: *const Task) -> ArcTask {
+    ArcTask(Arc::from_raw(future))
 }
 
 #[inline]
-unsafe fn clone_task(future: *const Task) -> RcTask {
+unsafe fn clone_task(future: *const Task) -> ArcTask {
     let task = task(future);
     forget(task.clone());
     task
