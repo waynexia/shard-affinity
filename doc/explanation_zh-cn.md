@@ -1,9 +1,11 @@
+<h1>Rust cpu affinity 初探</h1>
+
 # Brief
-在了解 [scylladb](https://www.scylladb.com/) 的时候学习到了 thread per core 这种架构，这篇文章从一个简单的 cache 结构出发，实现了三个不同的方案，并对它们进行比较，最后给出了在这个过程中学习到的一些东西。
+在看 [Apache Cassandra](https://cassandra.apache.org/) 的时候了解到 [ScyllaDB](https://www.scylladb.com/) 能在完全兼容它的情况下性能提升很多，通过进一步了解接触到了 thread per core 这种架构，这篇文章从一个简单的 cache 结构出发，实现了三个不同的方案，并对它们进行比较，最后给出了在这个过程中学习到的一些东西。
 
 Thread Per Core 简单来说就是将应用的每一个线程绑定到一个计算核心上，通过 sharding 的方式将计算拆解分配到对应的核上。这是一种 shared nothing 的方式，每个核单独持有计算所需要的数据，独立完成计算任务，从而避免掉多余的线程同步开销。同时每个核心和工作线程一一对应，减少上下文切换的开销。
 
-在 [waynexia/shard-affinity](https://github.com/waynexia/shard-affinity) 中，我分别用普通的不做限制调度、local set 给计算任务分组以及 绑定任务、核心与线程三种方式实现同一个目的的 cache 结构。这三种实现分别对应 *shard-affinity/load/src* 目录下的 *threading-rs*, *local_set-rs* 和 *affinity-rs* 三个文件。
+在 [waynexia/shard-affinity](https://github.com/waynexia/shard-affinity) 中，我分别用普通的不做限制调度、local set 给计算任务分组以及 绑定任务、核心与线程三种方式实现同一个目的的 cache 结构。这三种实现分别对应 *shard-affinity/load/src* 目录下的 *threading-rs*, *local_set-rs* 和 *affinity-rs* 三个文件。接下来将对这三种方法实现方法进行分析。下文提到的原始代码都在这个仓库里面，为了简洁进行了部分省略。
 
 # Cache
 
@@ -22,7 +24,9 @@ impl CacheCell {
 
 首先为了能让多个任务在同时操作 cache 的时候仍能得到符合预期的结果，我们可以使用 lock-free 的结构，或者对它加上一把锁将并发的操作串行化。而我们发现对不同的 id 进行的操作并不会互相影响。所以可以将线程同步所影响的结构粒度变小，以这个 cache 所参考的 gorilla in-memory data structure 为例，将 id 分为进行分组，由对应的 cell 进行管理。将锁的粒度变小，以支持更高的并发操作。
 
-<center><img src="gorilla-fig7.png" width="75%"></center>
+<img src="gorilla-fig7.png" width="75%">
+
+> 图一，from [Gorilla](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf) paper Fig.7: Gorilla in-memory data structure.
 
 选这个结构作为实例有两个原因，首先这是一个实际生产系统所使用的结构，比较有实际意义；并且它比较简单易于实现，而且本身就已经对 id 进行了 sharding，方便进行后续的使用。
 
@@ -57,7 +61,7 @@ rt.spawn(async move {
 
 具体来说，由上面我们知道不同的 id 之间的操作不会互相影响，所以能够将锁粒度变小。同样的，不同 id 的任务计算所需要用到的数据也不会重叠，也就是避免了一份数据可能被多个内核同时访问的场景，从而不需要考虑我们的修改对其他内核的可见性。基于这一点，之前付出的性能代价来给数据实现 `Send` 和 `Sync` 也可以被节省下来。比如引用计数可以从 `Arc` 变成 `Rc`，或者说所有为了保证可见性所加的指令屏障都可以去掉。
 
-从实现来看，在我的这台 16t 的设备上，将所有的 shards 分给15个线程进行管理，另外一个来进行任务的分发，任务分发线程与其余每个线程之间都有一个 channel 来进行任务的传输。这里分发的任务有两种：
+从实现来看，在我的这台有十六个逻辑核心的设备上，将所有的 shards 分给15个线程进行管理，另外一个来进行任务的分发，任务分发线程与其余每个线程之间都有一个 channel 来进行任务的传输。这里分发的任务有两种：
 
 ```rust
 enum Task {
@@ -119,11 +123,19 @@ self.runtime.spawn(route_id(id), async move {
 # Test
 在 *shard_affinity/src* 下有三个 binary 代码文件，分别是对三种情况进行的一个简单的测试。工作负载的参数可以在 *shard_affinity/src/lib.rs* 下看到。在我的环境下，三个方案以 128 并发分别进行 1024 次写以及 4096 次读 16KB 的数据耗时如下。为了让数据集中，将 id 的范围设置到了 0 至 1023.
 
-<center><img src="result.png" width="75%"></center>
+<img src="result.png" width="75%">
 
-可以看到，local set 和 affinity 两种方案的表现并不如 threading 的好。猜测可能的原因是，在 local set 和 affinity 两种方案下都是由一个线程做入口进行任务生成和分发，在测试的时候能看到 cpu 的负载也是一高其他的底，而且由于模拟的任务单个执行时间都比较短，因此可能是这个线程到达了瓶颈。
+> 图二，本地进行测试结果。纵坐标为延时（毫秒），越低越好。
 
-由于所有的内存数据，即状态都被预先分散到各个核上，因此对 sharding 的方案也有要求。当由于热点等原因出现负载不均衡时，进行 re-balance 一般会是一个比较耗时的操作，灵活性这方面不如 threading 模式。此外计算的分布方法也很重要，比如目前由一个线程向其他线程分发的方式就在测试中出现了问题。考虑到实际的系统计算负载的组成更加复杂，如何很好的分散计算任务也是需要慎重决定的。
+可以看到，local set 和 affinity 两种方案的表现并不如 threading 的好。初步分析时在 local set 和 affinity 两种方案下都是由一个线程做入口进行任务生成和分发，即多出了额外的任务路由开销，在测试的时候能看到 cpu 的负载也是一高多底，而且由于模拟的任务单个执行时间都比较短，路由线程也会更先到达瓶颈。
+
+在将工作线程数都调整为 8 （逻辑核心数量的一半）之后，可以看到 threading 和 affinity 的差别有所减小。对于目前仍然存在的 gap，通过 flamegraph 分析可能是 affinity 需要对每个任务收发请求和结果带来的.
+
+<img src="adjust worker.png" width="75%">
+
+> 图三，调整 worker 数量之后的结果。纵坐标为延时（毫秒），越低越好。
+
+由于所有的内存数据，即状态都被预先分散到各个核上，因此对 sharding 的方案也有要求。当 affinity 由于热点等原因出现负载不均衡时，进行 re-balance 一般会是一个比较耗时的操作，灵活性这方面不如 threading 模式。此外计算的分布方法也很重要，比如目前由一个线程向其他线程分发的方式就在测试中出现了问题。考虑到实际的系统计算负载的组成更加复杂，如何很好的分散计算任务也是需要慎重决定的。
 
 # Others
 
@@ -133,4 +145,7 @@ self.runtime.spawn(route_id(id), async move {
 
 # Conclusion
 
-在简单的对比过不同方法的实现和性能之后，从我的观点来看 thread per core 是一个非常值得尝试的方法，它能够在某种程度上简化开发时所考虑的场景，也很适合目前动辄几十上百核的服务器，而且也有 [scylladb](https://www.scylladb.com/) 这种成熟的实践。不过这个对于已经基本成型的系统来说所需要作的改动比较大，而且这些改动所直接带来的提升与增加的复杂度，工作量和风险性比起来不太会很有可能不会占太多优势。
+在简单的对比过不同方法的实现和性能之后，从我的观点来看 thread per core 是一个非常值得尝试的方法，它能够在某种程度上简化开发时所考虑的场景，也很适合目前动辄几十上百核的服务器，而且也有 [scylladb](https://www.scylladb.com/) 这种成熟的实践。不过这个对于已经基本成型的系统来说所需要作的改动比较大。我们期望 thread per core 带来的提升是通过减小同步开销以及提高的缓存命中率实现更低的延时以及更平稳的性能，而且这些改动所能带来的提升与增加的复杂度，工作量和风险性相比则需要进行权衡。
+
+# 关于我们
+我们是蚂蚁智能监控技术中台的时序存储团队，我们正在使用 Rust 构建高性能、低成本并具备实时分析能力的新一代时序数据库，欢迎加入或者推荐，目前我们也正在寻找优秀的实习生，也欢迎广大应届同学来我们团队实习，请联系：jiachun.fjc@antgroup.com
